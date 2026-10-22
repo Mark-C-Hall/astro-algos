@@ -5,17 +5,42 @@ import (
 	"testing"
 )
 
+// bookTolerance suits expected values written to 8 decimals.
 const bookTolerance = 1e-6
 
 func floatsEqual(a, b, tolerance float64) bool {
 	return math.Abs(a-b) <= tolerance
 }
 
+// printed returns half a unit in the last place of a value printed to n decimals.
+func printed(n int) float64 { return 0.5 * math.Pow10(-n) }
+
+// Chapter 1's example of a large angle: sin 36000030° = sin 30°.
 func TestTrigFunctionOfLargeAngle(t *testing.T) {
 	angle := FromDegrees(36000030)
 	got := math.Sin(angle.Radians())
 	if !floatsEqual(got, 0.5, bookTolerance) {
 		t.Errorf("Sin(angle) = %.10f; want 0.5", got)
+	}
+}
+
+// Chapter 2's quick checks of a language's trig functions.
+func TestTrigAccuracy(t *testing.T) {
+	const tolerance = 1e-15
+	tests := []struct {
+		name string
+		got  float64
+		want float64
+	}{
+		{"sin 0.61 rad", FromRadians(0.61).Sin(), 0.5728674601004813},
+		{"4 atan 1", 4 * Atan2(1, 1).Radians(), math.Pi},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !floatsEqual(tt.got, tt.want, tolerance) {
+				t.Errorf("%s = %.16f; want %.16f", tt.name, tt.got, tt.want)
+			}
+		})
 	}
 }
 
@@ -61,14 +86,17 @@ func TestFromDegrees(t *testing.T) {
 		name string
 		in   float64
 		want float64
+		tol  float64
 	}{
-		{"half turn", 180, math.Pi},
-		{"negative", -90, -math.Pi / 2},
-		{"reduced mod 360", 765, math.Pi / 4},
+		{"half turn", 180, math.Pi, bookTolerance},
+		{"negative", -90, -math.Pi / 2, bookTolerance},
+		{"reduced mod 360", 765, math.Pi / 4, bookTolerance},
+		{"moon mean longitude reduced", 192725.46868893, 125.46868893 * math.Pi / 180, bookTolerance},
+		{"moon mean longitude as printed", 192725.469, 125.469 * math.Pi / 180, printed(3) * math.Pi / 180},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := FromDegrees(tt.in).Radians(); !floatsEqual(got, tt.want, bookTolerance) {
+			if got := FromDegrees(tt.in).Radians(); !floatsEqual(got, tt.want, tt.tol) {
 				t.Errorf("FromDegrees(%v).Radians() = %.8f; want %.8f", tt.in, got, tt.want)
 			}
 		})
@@ -86,7 +114,7 @@ func TestNormalize(t *testing.T) {
 		{"full turn", 2 * math.Pi, 0},
 		{"negative", -math.Pi / 2, 3 * math.Pi / 2},
 		{"multiple turns", 5 * math.Pi, math.Pi},
-		{"tiny negative rounds to full turn", -1e-18, 0},
+		{"tiny negative rounds to full turn", -1e-18, 0}, // -1e-18 + 2π rounds to 2π, which wraps to 0
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
